@@ -1,6 +1,6 @@
 import base64
 from io import BytesIO
-from typing import List, Optional, Annotated
+from typing import List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
@@ -19,17 +19,15 @@ async def health():
 @app.post("/ai-tender/analyze")
 async def analyze_tender(
     # Kandidāta nosaukums (obligāts)
-    candidate_name: Annotated[str, Form(...)],
+    candidate_name: str = Form(...),
 
     # 1. variants – augšupielādēti faili (var būt arī None)
-    # GALVENĀ IZMAIŅA: vairs nelietojam Annotated ar File(..),
-    # bet klasisko FastAPI sintaksi:
     tender_file: UploadFile | None = File(None),
     candidate_archive: UploadFile | None = File(None),
 
     # 2. variants – ceļi Dropbox mapē (var būt arī None)
-    tender_dropbox_path: Annotated[Optional[str], Form(None)] = None,
-    candidate_dropbox_path: Annotated[Optional[str], Form(None)] = None,
+    tender_dropbox_path: Optional[str] = Form(None),
+    candidate_dropbox_path: Optional[str] = Form(None),
 ):
     """
     Minimāls endpoints:
