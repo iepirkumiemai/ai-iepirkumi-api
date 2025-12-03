@@ -22,8 +22,10 @@ async def analyze_tender(
     candidate_name: Annotated[str, Form(...)],
 
     # 1. variants – augšupielādēti faili (var būt arī None)
-    tender_file: Annotated[UploadFile | None, File(None)] = None,
-    candidate_archive: Annotated[UploadFile | None, File(None)] = None,
+    # GALVENĀ IZMAIŅA: vairs nelietojam Annotated ar File(..),
+    # bet klasisko FastAPI sintaksi:
+    tender_file: UploadFile | None = File(None),
+    candidate_archive: UploadFile | None = File(None),
 
     # 2. variants – ceļi Dropbox mapē (var būt arī None)
     tender_dropbox_path: Annotated[Optional[str], Form(None)] = None,
