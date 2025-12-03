@@ -1,6 +1,6 @@
 import base64
 from io import BytesIO
-from typing import List, Optional
+from typing import List, Optional, Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
@@ -18,15 +18,16 @@ async def health():
 
 @app.post("/ai-tender/analyze")
 async def analyze_tender(
-    candidate_name: str = Form(...),
+    # Kandidāta nosaukums (obligāts)
+    candidate_name: Annotated[str, Form(...)],
 
-    # 1. variants – augšupielādēti faili
-    tender_file: Optional[UploadFile] = File(None),
-    candidate_archive: Optional[UploadFile] = File(None),
+    # 1. variants – augšupielādēti faili (var būt arī None)
+    tender_file: Annotated[UploadFile | None, File(None)] = None,
+    candidate_archive: Annotated[UploadFile | None, File(None)] = None,
 
-    # 2. variants – ceļi Dropbox mapē
-    tender_dropbox_path: Optional[str] = Form(None),
-    candidate_dropbox_path: Optional[str] = Form(None),
+    # 2. variants – ceļi Dropbox mapē (var būt arī None)
+    tender_dropbox_path: Annotated[Optional[str], Form(None)] = None,
+    candidate_dropbox_path: Annotated[Optional[str], Form(None)] = None,
 ):
     """
     Minimāls endpoints:
@@ -59,7 +60,10 @@ async def analyze_tender(
     if tender_bytes is None or candidate_bytes is None:
         raise HTTPException(
             status_code=400,
-            detail="Provide either uploaded files (tender_file, candidate_archive) or Dropbox paths (tender_dropbox_path, candidate_dropbox_path).",
+            detail=(
+                "Provide either uploaded files (tender_file, candidate_archive) "
+                "or Dropbox paths (tender_dropbox_path, candidate_dropbox_path)."
+            ),
         )
 
     # ŠEIT vēlāk būs īstā OpenAI analīze
@@ -98,6 +102,7 @@ async def analyze_tender(
 
     error_flags: List[dict] = []
 
+    # DOCX ģenerēšana
     doc = Document()
     doc.add_heading("Pretendenta kvalifikācijas izvērtējums (TESTS)", level=1)
     doc.add_paragraph(f"Kandidāts: {candidate_name}")
