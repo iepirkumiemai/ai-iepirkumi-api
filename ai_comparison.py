@@ -1,7 +1,9 @@
 import os
+import json
 from typing import List, Dict, Any
 from pathlib import Path
 from openai import OpenAI
+
 from document_parser import DocumentParser, DocumentParserError
 
 
@@ -42,43 +44,48 @@ class AIComparisonEngine:
             temperature=0.0
         )
 
-        raw = response.choices[0].message["content"]
+        raw = response.choices[0].message.content
         lines = [line.strip() for line in raw.split("\n") if line.strip()]
         return lines
 
     # ============================================================
     # 2. Analīzes ģenerēšana pa punktiem
     # ============================================================
-    def compare_requirements(self, requirements: List[str], candidate_text: str) -> List[Dict[str, Any]]:
+    def compare_requirements(
+        self, 
+        requirements: List[str], 
+        candidate_text: str
+    ) -> List[Dict[str, Any]]:
+
+        req_list_json = json.dumps(requirements, ensure_ascii=False)
+
         prompt = f"""
         Tu esi starptautisks publisko iepirkumu eksperts.
 
-        Te ir prasību saraksts:
-        {requirements}
+        Prasību saraksts JSON formātā:
+        {req_list_json}
 
-        Un te ir kandidāta dokumenta saturs:
+        Kandidāta dokuments:
         ------------------------
         {candidate_text}
         ------------------------
 
         Uzdevums:
         1. Izvērtē katru prasību atsevišķi.
-        2. Nosaki, vai prasība ir:
+        2. Statusi:
            - "Atbilst"
            - "Daļēji atbilst"
            - "Neatbilst"
-        3. Sniedz skaidrojumu (īsu, profesionālu, bez liekvārdības)
-        4. Atgriez JSON sarakstu šādā struktūrā:
+        3. Katram punktam pievieno īsu pamatojumu.
+        4. Atgriez *tikai* validu JSON sarakstu:
 
         [
           {{
             "requirement": "...",
-            "status": "Atbilst / Daļēji atbilst / Neatbilst",
+            "status": "...",
             "justification": "..."
           }}
         ]
-
-        Sniedz tikai validu JSON, bez papildus teksta.
         """
 
         response = self.client.chat.completions.create(
@@ -87,21 +94,21 @@ class AIComparisonEngine:
             temperature=0.1
         )
 
-        import json
-        return json.loads(response.choices[0].message["content"])
+        raw_json = response.choices[0].message.content
+        return json.loads(raw_json)
 
     # ============================================================
-    # 3. Jauno OpenAI viedokļa analīze (summary)
+    # 3. Executive summary
     # ============================================================
     def generate_summary(self, results: List[Dict[str, Any]]) -> str:
         prompt = f"""
         Tu esi publisko iepirkumu analītiķis.
 
-        Te ir atbilstības rezultāti:
-        {results}
+        Analīzes rezultāti:
+        {json.dumps(results, ensure_ascii=False)}
 
-        Sagatavo īsu, profesionālu, objektīvu kopsavilkumu (executive summary),
-        ne garāku par 8 teikumiem.
+        Sagatavo īsu, profesionālu kopsavilkumu (executive summary),
+        maksimums 8 teikumi, bez sarakstiem.
         """
 
         response = self.client.chat.completions.create(
@@ -110,24 +117,25 @@ class AIComparisonEngine:
             temperature=0.2
         )
 
-        return response.choices[0].message["content"]
+        return response.choices[0].message.content
 
     # ============================================================
-    # 4. HTML tabulas ģenerēšana WordPress priekšskatam
+    # 4. HTML tabula WordPress priekšskatam
     # ============================================================
     def generate_html_table(self, results: List[Dict[str, Any]]) -> str:
         rows = []
+
         for item in results:
             rows.append(f"""
-            <tr>
-                <td>{item['requirement']}</td>
-                <td>{item['status']}</td>
-                <td>{item['justification']}</td>
-            </tr>
+                <tr>
+                    <td>{item['requirement']}</td>
+                    <td>{item['status']}</td>
+                    <td>{item['justification']}</td>
+                </tr>
             """)
 
         return f"""
-        <table border="1" cellpadding="6" cellspacing="0">
+        <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%;">
             <tr>
                 <th>Prasība</th>
                 <th>Atbilstība</th>
@@ -138,16 +146,10 @@ class AIComparisonEngine:
         """
 
     # ============================================================
-    # 5. Pilns analīzes process (viens izsaukums)
+    # 5. Pilnais analīzes process
     # ============================================================
     def analyze(self, req_path: Path, cand_path: Path) -> Dict[str, Any]:
-        """
-        1. Izpakot dokumentus
-        2. Sadalīt prasības
-        3. Salīdzināt pa punktiem
-        4. Ģenerēt summary
-        5. Ģenerēt HTML tabulu
-        """
+
         req_data = DocumentParser.extract(req_path)
         cand_data = DocumentParser.extract(cand_path)
 
